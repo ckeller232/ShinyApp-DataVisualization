@@ -5,3 +5,5 @@
 ### Summaries of each are included in the app
 ### EBITDA trends are also shown for each sector
 ### Summary includes total number
+
+### This is just a test to make sure git is working
