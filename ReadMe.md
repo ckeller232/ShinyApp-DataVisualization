@@ -12,5 +12,5 @@
 
 
 
-# Note: dataset is an open source dataset downloaded from Kaggle.  Link is found below:
+# Note: dataset is an open source dataset downloaded from Kaggle. Dataset has 9994 rows and 21 column variables.  Link is found below:
 ###  https://www.kaggle.com/datasets/vivek468/superstore-dataset-final
