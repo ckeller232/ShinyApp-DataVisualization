@@ -31,7 +31,7 @@ sales_tbl <- read.csv('Superstore_data.csv', header = T) %>%
 processed_sales <- sales_tbl %>%
     separate(Customer.ID, into = c("initials", "id.number"), sep = "-") %>%
     separate(Order.ID, into = c("Order.State", "Order.Year", "Order.ID"), sep = "-") %>%
-    select(Order.Date, Order.ID, Quantity, Sales, State, Category, Sub.Category, Profit) %>%
+    select(Order.Date, Order.ID, Quantity, Sales, State, Category, Sub.Category, Profit, Region) %>%
     mutate(Order.ID = as.numeric(Order.ID)) %>%
     filter(State != "District of Columbia") %>%
     mutate(State = state.abb[match(State, state.name)])
@@ -40,7 +40,7 @@ processed_sales <- sales_tbl %>%
 
 ```
 
-Sales Visualizations
+Overall Sales Visualizations
 =============================================================================
 
 Column {.sidebar}
@@ -259,6 +259,7 @@ plotlyOutput(outputId = "plotly_2")
 ```
 
 
+
 Sales Tables
 ==================================================================================
 
@@ -344,6 +345,113 @@ renderDataTable(Summary_by_State_tbl())
 
 
 
+Grouped Visualizations
+=================================================================================
+
+Row {data-height=600}
+---------------------------------------------------------------------------------
+
+### **Sales Trends by Category**
+
+```{r}
+
+        sales_trend_tbl <- reactive({
+            processed_sales %>%
+                filter(Category %in% input$checkbox_category) %>%
+                filter(Sub.Category %in% input$picker_subcategory) %>%
+                filter(Order.Date %>% between(left = input$date_range[1], right = input$date_range[2])) %>%
+                mutate(date = floor_date(Order.Date, unit = 'week')) %>%
+                group_by(Category, date) %>%
+                summarise(totalsales = sum(Sales)) %>%
+                ungroup() 
+                 })
+
+renderPlot({
+    sales_trend_tbl() %>%
+                ggplot(aes(x=date, y = totalsales, color = Category)) +
+                geom_smooth(method = 'loess', span = 0.1, se = FALSE) +
+                theme_classic() +
+                scale_y_continuous("Total Sales",  labels = scales::label_dollar(),
+                                   breaks = round(seq(min(processed_sales$Sales), max(processed_sales$Sales), by = 1000), 0)) +
+                labs(x = 'Date') +
+                theme(axis.text = element_text(size = 12),
+                      axis.title = element_text(size = 17, face = 'bold'),
+                      legend.text = element_text(size = 12),
+                      legend.title = element_text(size = 12, face = 'bold'))
+})
+```
+
+
+Row {data-height=450}
+---------------------------------------------------------------------------------
+
+
+
+
+### **Sales vs Profits - by Category**
+
+```{r}
+sales_vs_profit_tbl <- 
+        reactive({
+            processed_sales %>%
+                filter(Order.Date %>% between(left = input$date_range[1],
+                                          right = input$date_range[2])) %>%
+                filter(Category %in% input$checkbox_category) %>%
+                filter(Sub.Category %in% input$picker_subcategory) 
+                })
+
+renderPlot({
+    
+    sales_vs_profit_tbl()%>%
+                ggplot(aes(x = Sales, y = Profit, color = Category)) +
+                geom_point(size = 4) +
+                coord_flip() +
+                theme_classic() +
+                scale_y_continuous(labels = scales::dollar_format(),
+                                   breaks = round(seq(min(processed_sales$Profit), max(processed_sales$Profit), by = 2000), 0)) +
+                scale_x_continuous(labels = scales::dollar_format(),
+                                   breaks = round(seq(min(processed_sales$Sales), max(processed_sales$Sales), by = 2000), 0)) +
+                theme(legend.background = element_blank(),
+                      #legend.box.background = element_rect(colour = "grey"),
+                      axis.text = element_text(size = 12),
+                      axis.title = element_text(size = 17, face = 'bold'),
+                      legend.text = element_text(size = 12),
+                      legend.title = element_text(face = 'bold')) +
+                expand_limits(x = 0)
+                
+    
+    
+})
+
+
+```
+
+
+### **Total Sales by Region**
+
+```{r}
+region_tbl <- reactive({
+    
+    processed_sales %>%
+                filter(Order.Date %>% between(left = input$date_range[1],
+                                          right = input$date_range[2])) %>%
+                filter(Category %in% input$checkbox_category) %>%
+                filter(Sub.Category %in% input$picker_subcategory) %>%    
+                group_by(Region) %>%
+                summarise(TotalSales = sum(Sales)) %>%
+                ungroup() %>%
+                mutate(TotalSales = scales::dollar(TotalSales)) 
+})
+
+renderPlotly({
+        region_tbl() %>%
+            ggplot(aes(x = fct_rev(fct_reorder(Region, TotalSales)), y = TotalSales, fill = Region)) +
+            geom_col() +
+            labs(x = "") +
+            theme_classic() 
+        
+})
+```
 
 
 
