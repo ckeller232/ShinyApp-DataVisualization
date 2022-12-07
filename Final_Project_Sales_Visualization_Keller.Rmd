@@ -1,0 +1,360 @@
+---
+title: "Superstore Sales Dashboard"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: scroll
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(shiny)
+library(shinyWidgets)
+
+library(tidyverse)
+library(tidyquant)
+library(plotly) # interactive viusualization
+library(DT)
+
+library(readr)
+library(dplyr)
+```
+
+
+```{r}
+sales_tbl <- read.csv('Superstore_data.csv', header = T) %>%
+    as_tibble() %>%
+    mutate(Order.Date = as.Date(Order.Date, format = '%m/%d/%Y'),
+           Ship.Date = as.Date(Ship.Date, format = "%m/%d/%Y"))
+
+processed_sales <- sales_tbl %>%
+    separate(Customer.ID, into = c("initials", "id.number"), sep = "-") %>%
+    separate(Order.ID, into = c("Order.State", "Order.Year", "Order.ID"), sep = "-") %>%
+    select(Order.Date, Order.ID, Quantity, Sales, State, Category, Sub.Category, Profit) %>%
+    mutate(Order.ID = as.numeric(Order.ID)) %>%
+    filter(State != "District of Columbia") %>%
+    mutate(State = state.abb[match(State, state.name)])
+
+#processed_sales
+
+```
+
+Sales Visualizations
+=============================================================================
+
+Column {.sidebar}
+-----------------------------------------------------------------------------
+
+```{r}
+
+dateRangeInput(inputId = "date_range",
+               label = h4("Date Ranges"),
+               start = min(processed_sales$Order.Date),
+               end = max(processed_sales$Order.Date),
+               min = min(processed_sales$Order.Date),
+               max = max(processed_sales$Order.Date),
+               startview = "year")
+
+shinyWidgets::checkboxGroupButtons(inputId = "checkbox_category",
+                                   label = h4("Sales Category"),
+                                   choices = unique(processed_sales$Category),
+                                   selected = unique(processed_sales$Category),
+                                   checkIcon = list(yes = icon("ok", lib = "glyphicon"),
+                                                    no = icon("remove", lib = "glyphicon")))
+
+shinyWidgets::pickerInput(inputId = "picker_subcategory",
+                          label = h4("Subcategory"),
+                          choices = unique(processed_sales$Sub.Category),
+                          selected = unique(processed_sales$Sub.Category),
+                          multiple = TRUE,
+                          options = list(`actions-box` = TRUE, size = 10, `selected-text-format` = "count > 3"))
+
+br()
+hr()
+br()
+
+
+
+actionBttn(inputId = "reset",
+           label = "Reset",
+           icon = icon('sync'))
+
+observeEvent(eventExpr = input$reset,
+             handlerExpr = {
+                 updateCheckboxGroupButtons(session = session,
+                                            inputId = 'checkbox_category',
+                                            selected = unique(processed_sales$Category))
+                 updatePickerInput(session = session,
+                                   inputId = "picker_subcategory",
+                                   selected = unique(processed_sales$Sub.Category))
+                 updateDateRangeInput(session = session,
+                                      inputId = "date_range",
+                                      start = min(processed_sales$Order.Date),
+                                      end = max(processed_sales$Order.Date))
+                 updateRadioGroupButtons(session = session,
+                                         inputId = "time_units",
+                                         selected = "month")
+             })
+
+
+```
+
+Row {data-height=150}
+-----------------------------------------------------------------------------
+
+```{r}
+processed_aggregated <- reactive({ processed_sales %>%
+    filter(Category %in% input$checkbox_category) %>%
+    filter(Sub.Category %in% input$picker_subcategory) %>%
+    filter(Order.Date %>% between(left = input$date_range[1], right = input$date_range[2])) %>%
+    summarise(Orders = unique(Order.ID) %>% length(),
+              Wealth = sum(Sales)) %>%
+    mutate(Orders = Orders %>% scales::number(big.mark = ","),
+        Wealth = scales::dollar(Wealth, scale = 1e-6, accuracy = 0.1, suffix = "M"),
+        )
+})
+
+
+```
+
+### **Orders**
+
+```{r}
+renderValueBox({
+    
+   valueBox(value = processed_aggregated()$Orders, 
+            caption = "Total Number of Orders", 
+            icon = "fa-chart-simple", 
+            color = "lightgreen") 
+    
+})
+
+
+```
+
+### **Total Sales**
+
+```{r}
+
+renderValueBox({
+    
+    valueBox(value = processed_aggregated()$Wealth,
+         caption = "Total Sales in Millions",
+         icon = "fa-dollar-sign",
+         color = "lightblue")
+    
+})
+
+
+
+```
+
+
+
+
+
+
+
+Row {data-height=850}
+-----------------------------------------------------------------------------
+
+### **Sales By State**
+
+```{r}
+
+geo_plot_tbl <- reactive({
+    processed_sales %>%
+    filter(Category %in% input$checkbox_category) %>%
+    filter(Sub.Category %in% input$picker_subcategory) %>%
+    filter(Order.Date %>% between(left = input$date_range[1], right = input$date_range[2])) %>%
+    group_by(State) %>%
+    summarise(totalrevenue = sum(Sales)) %>%
+    ungroup() %>%
+    mutate(label_text = str_glue("State: {State}
+                                    Revenue: {scales::dollar(totalrevenue)}"))
+    
+})
+
+
+```
+
+```{r}
+output$plotly_1 <- renderPlotly(expr = {
+
+geo_plot_tbl() %>%
+    plot_geo(locationmode = "USA-states") %>%
+    add_trace(z = ~totalrevenue, 
+              locations = ~State, 
+              color = ~totalrevenue,
+              text = ~label_text,
+              colors = "Blues") %>%
+    layout(geo = list(scope = 'usa',
+                      projection = list(type = "albers usa"),
+                      showlakes = TRUE,
+                      lakecolor = 'white'))
+})
+
+plotlyOutput(outputId = "plotly_1")
+```
+
+
+
+
+### **Sales Over Time**
+
+```{r}
+radioGroupButtons(inputId = "time_units",
+                  label = "Time Units for Time Series Plot",
+                  choices = c("Day" = "day", "Week" = "week", "Month" = "month", "Quarter" = "quarter", "Year" = "year"),
+                  selected = "month" , 
+                  status = "primary",
+                  justified = TRUE,
+                  checkIcon = list(yes = icon("ok", lib = "glyphicon"))
+                  )
+```
+
+
+```{r}
+
+
+timeplot_tbl <- 
+    reactive({
+        time_unit <- input$time_units
+            processed_sales %>%
+            filter(Order.Date %>% between(left = input$date_range[1],
+                                          right = input$date_range[2])) %>%
+            filter(Category %in% input$checkbox_category) %>%
+            filter(Sub.Category %in% input$picker_subcategory) %>%
+            mutate(date = floor_date(Order.Date, unit = time_unit)) %>%
+            group_by(date) %>%
+            summarise(total_sales = sum(Sales)) %>%
+            ungroup() %>%
+            mutate(label_text = str_glue("Date: {date}
+                                         Revenue: {scales::dollar(total_sales)}"))  
+        
+    })
+    
+output$plotly_2 <- renderPlotly({
+    plot.1 <- timeplot_tbl() %>%
+        ggplot(aes(x = date, y = total_sales)) +
+        geom_line(color = "#2c3e50") +
+        geom_point(aes(text = timeplot_tbl()$label_text), color = "black", size = .1) +
+        geom_smooth(method = "loess", span = 0.22, se=TRUE) +
+        theme_tq() +
+        theme(panel.grid = element_blank()) +
+        expand_limits(y=0) +
+        scale_y_continuous(labels = scales::dollar_format()) +
+        labs(title = "Total Sales",
+             y = "",
+             x = "") 
+    
+    ggplotly(plot.1, tooltip = "text") %>%
+        layout(margin = list(b = 150))
+})
+
+plotlyOutput(outputId = "plotly_2")
+
+
+```
+
+
+Sales Tables
+==================================================================================
+
+Row {data-height=600}
+----------------------------------------------------------------------------------
+
+### **Total Sales/Profits by Category**
+
+```{r}
+            
+
+        Processed_summary_tbl <- reactive({
+                processed_sales %>%
+                        filter(Category %in% input$checkbox_category) %>%
+                        filter(Sub.Category %in% input$picker_subcategory) %>%
+                        filter(Order.Date %>% between(left = input$date_range[1], right = input$date_range[2])) %>%
+                        group_by(State, Category) %>%
+                        summarise(NumberOfOrders = unique(Order.ID) %>% length(),
+                              TotalSales = sum(Sales),
+                              TotalProfits = sum(Profit)) %>%
+                        ungroup() %>%
+                        mutate(TotalSales = scales::dollar(TotalSales),
+                               TotalProfits = scales::dollar(TotalProfits))
+                        })
+
+renderDataTable(Processed_summary_tbl())
+```
+
+
+Row {data-height=600}
+----------------------------------------------------------------------------------
+
+### **Total Sales/Profits by Subcategory**
+
+```{r}
+        Subcategory_summary_tbl <- reactive({
+            processed_sales %>%
+                filter(Category %in% input$checkbox_category) %>%
+                filter(Sub.Category %in% input$picker_subcategory) %>%
+                filter(Order.Date %>% between(left = input$date_range[1], right = input$date_range[2])) %>%
+                group_by(State, Sub.Category) %>%
+                summarise(NumberOfOrders = unique(Order.ID) %>% length(),
+                          TotalSales = sum(Sales),
+                          TotalProfits = sum(Profit)) %>%
+                ungroup() %>%
+                mutate(TotalSales = scales::dollar(TotalSales),
+                       TotalProfits = scales::dollar(TotalProfits))
+                })
+
+renderDataTable(Subcategory_summary_tbl())
+```
+
+
+### **Total Sales/Profits by State**
+
+
+```{r}
+
+          Summary_by_State_tbl <- reactive({
+            processed_sales %>%
+                filter(Category %in% input$checkbox_category) %>%
+                filter(Sub.Category %in% input$picker_subcategory) %>%
+                filter(Order.Date %>% between(left = input$date_range[1], right = input$date_range[2])) %>%
+                group_by(State) %>%
+                summarise(NumberOfOrders = unique(Order.ID) %>% length(),
+                          TotalSales = sum(Sales),
+                          TotalProfits = sum(Profit)) %>%
+                ungroup() %>%
+                mutate(TotalSales = scales::dollar(TotalSales),
+                       TotalProfits = scales::dollar(TotalProfits))
+          }) 
+
+renderDataTable(Summary_by_State_tbl())
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
