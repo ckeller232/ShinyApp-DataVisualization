@@ -1,4 +1,4 @@
-# Shiny App created in R to visualize sales of Superstore data over roughly a 3 year time frame
+# Shiny App created in R to visualize sales of Superstore data over roughly a 4 year time frame
 
 ### On the top of the main page, the user will see the total number of orders and total sales (in dollars) for the selected criteria (it is interactive).
 ### App allows the user to look at a Geo_plot, hover over each state, and visualize the total sales and state name.
