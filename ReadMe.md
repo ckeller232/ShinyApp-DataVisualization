@@ -7,3 +7,8 @@
 
 ### The app inludes reactive buttons that allows the user to look at both the visualizations and the tables by selecting certain date ranges, categories or sub-categories.
 ### To reset the app to its default state, simply hit the 'Reset' button in the app.
+
+
+
+# Note: dataset is an open source dataset downloaded from Kaggle.  Link is found below:
+###  https://www.kaggle.com/datasets/vivek468/superstore-dataset-final
