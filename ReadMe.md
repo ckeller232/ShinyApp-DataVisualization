@@ -9,7 +9,7 @@
 ### All visualizations on the third page of the app are also interactive where the user can use the filter on the main summary panel to filter what they want to see.
 
 
-### The app inludes reactive buttons that allows the user to look at both the visualizations and the tables by selecting certain date ranges, categories or sub-categories.
+### The app inludes reactive buttons that allows the user to look at both the visualizations and the tables by selecting certain date ranges, categories, sub-categories or specific states as filters.
 ### To reset the app to its default state, simply hit the 'Reset' button in the app.
 
 
