@@ -14,7 +14,7 @@ library(shinyWidgets)
 
 library(tidyverse)
 library(tidyquant)
-library(plotly) # interactive viusualization
+library(plotly)
 library(DT)
 
 library(readr)
@@ -70,6 +70,13 @@ shinyWidgets::pickerInput(inputId = "picker_subcategory",
                           multiple = TRUE,
                           options = list(`actions-box` = TRUE, size = 10, `selected-text-format` = "count > 3"))
 
+shinyWidgets::pickerInput(inputId = "states_filter",
+                          label = h4("States"),
+                          choices = unique(processed_sales$State),
+                          selected = unique(processed_sales$State),
+                          multiple = TRUE,
+                          options = list(`actions-box` = TRUE, size = 10, `selected-text-format` = "count > 3"))
+
 br()
 hr()
 br()
@@ -88,6 +95,9 @@ observeEvent(eventExpr = input$reset,
                  updatePickerInput(session = session,
                                    inputId = "picker_subcategory",
                                    selected = unique(processed_sales$Sub.Category))
+                updatePickerInput(session = session,
+                                   inputId = "states_filter",
+                                   selected = unique(processed_sales$State))
                  updateDateRangeInput(session = session,
                                       inputId = "date_range",
                                       start = min(processed_sales$Order.Date),
@@ -105,6 +115,7 @@ Row {data-height=150}
 
 ```{r}
 processed_aggregated <- reactive({ processed_sales %>%
+    filter(State %in% input$states_filter) %>%
     filter(Category %in% input$checkbox_category) %>%
     filter(Sub.Category %in% input$picker_subcategory) %>%
     filter(Order.Date %>% between(left = input$date_range[1], right = input$date_range[2])) %>%
@@ -165,6 +176,7 @@ Row {data-height=850}
 
 geo_plot_tbl <- reactive({
     processed_sales %>%
+    filter(State %in% input$states_filter) %>%
     filter(Category %in% input$checkbox_category) %>%
     filter(Sub.Category %in% input$picker_subcategory) %>%
     filter(Order.Date %>% between(left = input$date_range[1], right = input$date_range[2])) %>%
@@ -222,6 +234,7 @@ timeplot_tbl <-
     reactive({
         time_unit <- input$time_units
             processed_sales %>%
+            filter(State %in% input$states_filter) %>%
             filter(Order.Date %>% between(left = input$date_range[1],
                                           right = input$date_range[2])) %>%
             filter(Category %in% input$checkbox_category) %>%
@@ -273,6 +286,7 @@ Row {data-height=600}
 
         Processed_summary_tbl <- reactive({
                 processed_sales %>%
+                        filter(State %in% input$states_filter) %>%
                         filter(Category %in% input$checkbox_category) %>%
                         filter(Sub.Category %in% input$picker_subcategory) %>%
                         filter(Order.Date %>% between(left = input$date_range[1], right = input$date_range[2])) %>%
@@ -297,6 +311,7 @@ Row {data-height=600}
 ```{r}
         Subcategory_summary_tbl <- reactive({
             processed_sales %>%
+                filter(State %in% input$states_filter) %>%
                 filter(Category %in% input$checkbox_category) %>%
                 filter(Sub.Category %in% input$picker_subcategory) %>%
                 filter(Order.Date %>% between(left = input$date_range[1], right = input$date_range[2])) %>%
@@ -320,6 +335,7 @@ renderDataTable(Subcategory_summary_tbl())
 
           Summary_by_State_tbl <- reactive({
             processed_sales %>%
+                filter(State %in% input$states_filter) %>%
                 filter(Category %in% input$checkbox_category) %>%
                 filter(Sub.Category %in% input$picker_subcategory) %>%
                 filter(Order.Date %>% between(left = input$date_range[1], right = input$date_range[2])) %>%
@@ -357,6 +373,7 @@ Row {data-height=600}
 
         sales_trend_tbl <- reactive({
             processed_sales %>%
+                filter(State %in% input$states_filter) %>%
                 filter(Category %in% input$checkbox_category) %>%
                 filter(Sub.Category %in% input$picker_subcategory) %>%
                 filter(Order.Date %>% between(left = input$date_range[1], right = input$date_range[2])) %>%
@@ -394,6 +411,7 @@ Row {data-height=450}
 sales_vs_profit_tbl <- 
         reactive({
             processed_sales %>%
+                filter(State %in% input$states_filter) %>%
                 filter(Order.Date %>% between(left = input$date_range[1],
                                           right = input$date_range[2])) %>%
                 filter(Category %in% input$checkbox_category) %>%
@@ -433,6 +451,7 @@ renderPlot({
 region_tbl <- reactive({
     
     processed_sales %>%
+                filter(State %in% input$states_filter) %>%
                 filter(Order.Date %>% between(left = input$date_range[1],
                                           right = input$date_range[2])) %>%
                 filter(Category %in% input$checkbox_category) %>%
